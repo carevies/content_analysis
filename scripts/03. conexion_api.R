@@ -15,6 +15,7 @@ library(httr)
 library(jsonlite)
 library(dplyr)
 library(purrr)
+library(tidyverse)
 
 # Definir ubicación
 setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
@@ -26,11 +27,10 @@ muestra <- read.csv("muestra.csv")
 muestra <- muestra[500:510, ]
 
 # Crear nuevo data frame para alacenar las respuestas
-resultado_muestra_medios <- muestra
-resultado_muestra_medios$score <- NA
-resultado_muestra_medios$frase <- NA
-resultado_muestra_medios$term <- NA
-resultado_muestra_medios$characteristics <- NA
+resultado_muestra_medios <- data.frame(
+  score = rep(NA_integer_, nrow(muestra)),
+  term = I(vector("list", nrow(muestra)))
+)
 
 # Crear archivo vacío antes del bucle
 write.csv(resultado_muestra_medios[0, ], "resultado_muestra_medios.csv", row.names = FALSE)
@@ -59,22 +59,19 @@ tokens_usados$total <- 0
 
 # Función para enviar cada texto a la API
 enviar_prompt <- function(texto) {
-  if (is.na(texto) || texto == "") return(list(score = NA, frase = NA, term = NA, characteristics = NA))
+  if (is.na(texto) || texto == "") return(list(score = NA_integer_, term = NA))
   
   body <- list(
     model = "llama-3.3-70b-versatile",
     messages = list(
       list(role = "system", content = "Eres un asistente de análisis de texto"),
       list(role = "user", content = paste0(
-        "Analiza el siguiente texto y responde exclusivamente en formato JSON válido en español. NO incluyas explicaciones ni encabezados. Tu única salida debe ser un objeto JSON con los siguientes campos:\n\n",
-        "- \"score\": uno de estos cuatro valores: \"nada\", \"poco\", \"bastante\" o \"mucho\" (según cuánto hable sobre personas o movimientos trans);\n",
-        "- \"frase\": extrae una frase corta y textual del texto donde se hable directamente sobre personas trans (o pon null si no hay);\n",
-        "- \"term\": escribe textualmente el término que se usa para referirse a personas trans (o pon null si no hay);\n",
-        "- \"characteristics\": una lista con un máximo de tres características mencionadas sobre las personas trans (o una lista vacía si no hay ninguna);\n\n",
-        "Si el texto no menciona nada relacionado con personas trans o el movimiento trans, responde exactamente con esto:\n",
-        "{ \"score\": \"nada\", \"frase\": null, \"term\": null, \"characteristics\": [] }\n\n",
-        "Ejemplo 1:\n",
-        "{ \"score\": \"bastante\", \"frase\": \"acusan que integrantes de la comunidad LGBT+ fueron discriminadas\", \"term\": \"comunidad LGBT+\", \"characteristics\": [\"discriminadas\", \"manifestantes\", \"comunidad\"] }\n\n",
+        "Analiza el siguiente texto y responde solo con un objeto JSON válido en español, sin explicaciones ni encabezados.\n",
+        "Debe tener dos campos:\n",
+        "- \"score\": número (0 o 1) que indique si el texto habla (1) o no (0) sobre personas o movimiento trans;\n",
+        "- \"term\": lista con los términos textuales usados para referirse a personas trans (o lista vacía si no hay).\n\n",
+        "Ejemplo:\n",
+        "{ \"score\": 1, \"term\": [\"personas trans\", \"comunidad LGBT+\"] }\n\n",
         "Texto a analizar:\n", texto
       ))
     ),
@@ -112,54 +109,63 @@ enviar_prompt <- function(texto) {
       
       result <- tryCatch({
         respuesta <- fromJSON(raw_text)
-        
-        if (!is.null(respuesta$score) && respuesta$score == "nada") {
-          respuesta$frase <- NA_character_
-          respuesta$term <- NA_character_
-          respuesta$characteristics <- character(0)  # o NA_character_ si lo prefieres
+        # score debe ser numérico (0 o 1), si viene como string conviértelo:
+        if (!is.null(respuesta$score)) {
+          respuesta$score <- as.integer(respuesta$score)
+        } else {
+          respuesta$score <- NA_integer_
         }
-        
-        return(respuesta)
+        # Si term es NULL, pon character(0)
+        if (is.null(respuesta$term)) {
+          respuesta$term <- character(0)
+        }
+        # No modificar term según score
+        return(list(score = respuesta$score, term = respuesta$term))
       }, error = function(e) {
         warning(paste("Error al parsear JSON:", e))
-        return(list(score = NA_character_, frase = NA_character_, term = NA_character_, characteristics = NA))
+        return(list(score = NA_integer_, term = NA))
       })
-      return(result) # <--- ¡Agrega este return!
+      return(result)
     }
     intentos <- intentos - 1
     Sys.sleep(2)
   }
-  # Si todos los intentos fallan, retorna NA
-  return(list(score = NA, frase = NA, term = NA, characteristics = NA))
+  return(list(score = NA_integer_, term = NA))
 }
 
-# Procesar fila por fila y guardar resultados inmediatamente
-resultados <- map(1:nrow(muestra), function(i) {
+# Procesar fila por fila y guardar resultados
+resultado_muestra_medios <- data.frame(
+  score = rep(NA_integer_, nrow(muestra)),
+  term = I(vector("list", nrow(muestra)))
+)
+
+for (i in seq_len(nrow(muestra))) {
   Sys.sleep(2)
-  print(paste("Procesando fila", i))
-  
-  texto <- as.character(muestra$LP[i])  # Puede cambiar si se neceitan múltiples columnas
+  cat("Procesando fila", i, "\n")
+  texto <- as.character(muestra$LP[i])
   respuesta <- enviar_prompt(texto)
   
-  # Guardar resultado en el dataframe
   resultado_muestra_medios$score[i] <- respuesta$score
-  resultado_muestra_medios$frase[i] <- respuesta$frase
-  resultado_muestra_medios$term[i] <- respuesta$term 
-  resultado_muestra_medios$characteristics[i] <- if (
-    is.null(respuesta$characteristics) || all(is.na(respuesta$characteristics))
-  ) {
-    NA_character_
+  if (is.null(respuesta$term) || all(is.na(respuesta$term))) {
+    resultado_muestra_medios$term[[i]] <- NA
   } else {
-    paste(respuesta$characteristics, collapse = ", ")
+    resultado_muestra_medios$term[[i]] <- respuesta$term
   }
   
-  # Guardar resultado parcial en disco (cada fila)
-  write.csv(resultado_muestra_medios[1:i, ], "resultado_muestra_medios.csv", row.names = FALSE)
-  
-  return(respuesta)
-})
+  # Guardar resultado parcial en disco (toda la tabla hasta ahora, SOLO con columnas score y term)
+  # Convertir 'term' a string para el CSV
+  resultado_muestra_medios$term_txt <- sapply(resultado_muestra_medios$term, function(x) {
+    if (is.null(x) || all(is.na(x))) {
+      ""
+    } else if (length(x) == 0) {
+      ""
+    } else {
+      paste(x, collapse = "; ")
+    }
+  })
+  write.csv(resultado_muestra_medios[1:i, c("score", "term_txt")], "resultado_muestra_medios.csv", row.names = FALSE)
+}
 
-print(head(resultado_muestra_medios))
 
 #### Falta código para auto-actualización del cvs donde se quedó
 #### Falta ajustar la temperatura

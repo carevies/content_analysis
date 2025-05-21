@@ -1,12 +1,14 @@
 ######### Convertir base de datos de Factiva en CVS
 
-library(tidyverse)
 library(readxl)
-library(lubridate)
-library(writexl)
+library(dplyr)
+library(tidyr)
 library(stringr)
+library(lubridate)
+library(purrr)
+library(readr)
 
-setwd("/Users/carlosvillalobos/Library/CloudStorage/OneDrive-UniversitatdeBarcelona/Documents/Analisis de contenido/Ensayos/Análisis de medios")
+setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
 
 base <- read_excel("bbdd_factiva.xlsx", col_names = FALSE) #Importar sin nombres de columnas
 
@@ -41,4 +43,29 @@ factiva <- dat %>%
          date = ifelse(is.na(date), as.Date(as.numeric(PD), origin = "1899-12-30"), date)) %>% 
   distinct(AN, HD, LP, .keep_all = T)
 
-write_csv(factiva, "medios.csv") #Guardarlo en csv
+factiva_limpia <- dat %>%
+  drop_na(text) %>%
+  fill(class, .direction = "down") %>%
+  mutate(
+    id = ifelse(str_detect(class, "HD"), row_number(), NA),
+    class = str_replace_all(class, "[^[A-Z]]", "")
+  ) %>%
+  fill(id) %>%
+  pivot_wider(
+    names_from = class,
+    values_from = text,
+    values_fn = ~ .x[1]  # tomar el primer valor si hay duplicados
+  ) %>%
+  mutate(
+    LP = paste(LP, TD, sep = " "),              # Junta LP y TD
+    DT = dmy(PD),                                # Intenta parsear como día-mes-año
+    DT = ifelse(is.na(DT),                      # Si falla, interpreta como fecha numérica Excel
+                as.Date(as.numeric(PD), origin = "1899-12-30"),
+                DT),
+    DT = as.Date(DT)                             # Asegura que sea tipo Date
+  ) %>%
+  distinct(AN, HD, LP, .keep_all = TRUE) %>%
+  select(DT, SN, BY, WC, HD, LP, AN)          # Selecciona solo las columnas deseadas
+
+
+write_csv(factiva_limpia, "medios.csv") #Guardarlo en csv

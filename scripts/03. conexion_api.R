@@ -133,12 +133,6 @@ enviar_prompt <- function(texto) {
   return(list(score = NA_integer_, term = NA))
 }
 
-# Procesar fila por fila y guardar resultados
-resultado_muestra_medios <- data.frame(
-  score = rep(NA_integer_, nrow(muestra)),
-  term = I(vector("list", nrow(muestra)))
-)
-
 for (i in seq_len(nrow(muestra))) {
   Sys.sleep(2)
   cat("Procesando fila", i, "\n")

@@ -8,9 +8,9 @@ library(stringr)
 
 setwd("/Users/carlosvillalobos/Library/CloudStorage/OneDrive-UniversitatdeBarcelona/Documents/Analisis de contenido/Ensayos/Análisis de medios")
 
-base <- read_excel("medios.xlsx", col_names = FALSE) #Importar sin nombres de columnas
+base <- read_excel("bbdd_factiva.xlsx", col_names = FALSE) #Importar sin nombres de columnas
 
-fl <- list.files(pattern = "medios.xlsx", full.names = T)
+fl <- list.files(pattern = "bbdd_factiva.xlsx", full.names = T)
 
 dat <- map_df(fl, read_xlsx)      
 colnames(dat) = c("class", "text") #Nombrar columnas
@@ -41,6 +41,4 @@ factiva <- dat %>%
          date = ifelse(is.na(date), as.Date(as.numeric(PD), origin = "1899-12-30"), date)) %>% 
   distinct(AN, HD, LP, .keep_all = T)
 
-
-save(factiva, file="media.RData") #Guardarlo en formato R
-write_csv(factiva, "media.csv") #Guardarlo en csv
+write_csv(factiva, "medios.csv") #Guardarlo en csv

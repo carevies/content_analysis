@@ -1,5 +1,7 @@
 ######### Convertir base de datos de Factiva en CVS
 
+rm(list = ls()) 
+
 library(readxl)
 library(dplyr)
 library(tidyr)

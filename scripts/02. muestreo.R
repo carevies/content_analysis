@@ -1,5 +1,7 @@
 ######### Muestreo
 
+rm(list = ls()) 
+
 if (!require("dplyr")) install.packages("dplyr")
 if (!require("readr")) install.packages("readr")
 library(dplyr)

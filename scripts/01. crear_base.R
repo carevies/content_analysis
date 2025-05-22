@@ -38,7 +38,7 @@ factiva <- dat %>%
     values_fn = list  # así cada columna es lista de textos por noticia
   ) %>%
   ungroup() %>%
-  # Ahora colapsa cada lista en un solo string (separado por espacio; puedes poner salto de línea si prefieres)
+  # Ahora colapsa cada lista en un solo string (separado por espacio)
   mutate(across(
     c(HD, LP, TD, BY, WC, SN, SC, NS, RE, AN, IN, CO, SE, PD),
     ~map_chr(., ~paste(.x, collapse = " "))
@@ -64,90 +64,89 @@ factiva_limpia <- factiva %>%
 
 write_csv(factiva_limpia, "medios.csv") #Guardarlo en csv
 
+
+
 ### SMOS. Datos extraídos de LetraEse.
 
-Sys.setlocale("LC_TIME", "es_ES")
+library(rvest)
+library(httr)
+library(stringr)
 
-# Paquetes ----
-if(!require("rvest")) install.packages("rvest"); library(rvest)
-if(!require("stringr")) install.packages("stringr"); library(stringr)
-if(!require("dplyr")) install.packages("dplyr"); library(dplyr)
-if(!require("readr")) install.packages("readr"); library(readr)
-if(!require("beepr")) install.packages("beepr"); library(beepr)
-if(!require("lubridate")) install.packages("lubridate"); library(lubridate)
+# URL principal
+url_principal <- "https://letraese.org.mx/suplemento/"
 
-# Funciones ----
-# Negar
-`%notin%` <- negate(`%in%`) 
+# Leer el HTML de la página principal
+pagina <- read_html(url_principal)
 
-# Scrapping ----
-amlo_url <- "https://amlo.presidente.gob.mx/secciones/version-estenografica/"
-
-drop <- read_html(amlo_url) %>% 
-  html_nodes("div.pagenavi") %>% 
-  html_nodes("a") %>% 
+# Extraer todos los enlaces de los suplementos
+enlaces_suplementos <- pagina %>%
+  html_nodes(".vc_gitem-post-data-source-post_title a") %>%
   html_attr("href")
 
-# Extraer número máximo de página de forma segura
-max_page <- drop %>%
-  str_extract("[0-9]+") %>%
-  as.numeric() %>%
-  max(na.rm = TRUE)
+# Verificar enlaces
+head(enlaces_suplementos) 
 
-# DF que contendrá todas las observaciones
-final <- data.frame()
-
-# x = número de página y loop
-for(x in 1:max_page){
-  # urls de las páginas en dónde se guardan las versiones estenográficas
-  amlos <- read_html(paste0(amlo_url, "page/", as.character(x),"/"))
+# Función para extraer el enlace al PDF desde cada página individual
+obtener_pdf <- function(url_suplemento) {
+  Sys.sleep(1)  # Para no saturar el servidor
   
-  # urls de las versiones estenográficas
-  urls <- amlos %>% 
-    html_nodes("header.entry-header") %>% 
-    html_nodes("a") %>% 
-    html_attr("href")
+  # Leer la página del suplemento
+  pagina <- tryCatch(read_html(url_suplemento), error = function(e) return(NA))
   
-  # títulos
-  titles <- amlos %>% 
-    html_nodes("h2.entry-title") %>% 
-    html_text()
+  if (is.na(pagina)) return(NA)
   
-  # fechas
-  fechas <- 
-    as.Date.character(
-      str_replace_all(
-        paste0(str_sub(titles,1,6),"20",str_sub(titles,7,8)),
-        "\\.","-"
-      ), format = "%d-%m-%Y"
-    )
+  # Buscar enlaces que terminen en .pdf
+  enlace_pdf <- pagina %>%
+    html_nodes("a") %>%
+    html_attr("href") %>%
+    str_subset("\\.pdf$")
   
-  
-  # base temporal por página
-  tempo <- data.frame(
-    url = urls,
-    título = titles,
-    fecha = fechas
-  )
-  
-  bodies <- c()
-  # for para extraer títulos y textos
-  for(i in tempo$url){
-    
-    wbpg <- read_html(i)
-    
-    body <- wbpg %>%
-      html_nodes("p") %>%
-      html_text()
-    one_body <- paste(body, collapse=" ")
-    bodies <- append(bodies, one_body)
-    
+  # Regresar el primer link PDF que encuentre (suelen tener solo uno)
+  if (length(enlace_pdf) > 0) {
+    return(enlace_pdf[1])
+  } else {
+    return(NA)
   }
-  
-  tempo$texto <- bodies
-  tempo$loop <- as.character(x)
-  
-  # se guarda cada loop en final
-  final <- bind_rows(final, tempo)
-  rm(tempo,urls,fechas,titles,bodies,wbpg,body,one_body)
 }
+
+# Aplicar la función a todos los suplementos
+enlaces_pdf <- sapply(enlaces_suplementos, obtener_pdf)
+
+# Verifica los resultados
+head(enlaces_pdf)
+
+# Situarse donde se guardarán
+setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
+
+# Crear carpeta de destino si no existe
+if (!dir.exists("PDFs_LetraS")) dir.create("PDFs_LetraS")
+
+# Descargar los PDFs
+for (url_pdf in enlaces_pdf) {
+  nombre_archivo <- basename(url_pdf)
+  ruta_destino <- file.path("PDFs_LetraS", nombre_archivo)
+  
+  # Descargar solo si no existe
+  if (!file.exists(ruta_destino)) {
+    tryCatch({
+      download.file(url_pdf, destfile = ruta_destino, mode = "wb")
+      cat("Descargado:", nombre_archivo, "\n")
+    }, error = function(e) {
+      cat("Error con:", url_pdf, "\n")
+    })
+  }
+}
+
+# Se identifican 9 suplementos que no se descargaron. Se descargan manual:
+# Suplemento-5-diciembre-1996 (Link manda al 5 de la primera epoca)
+# Suplemento-29-diciembre-1998 (Link manda al 28)
+# Suplemento-43-febrero-2000 (Sin link en página de históricos)
+# Suplemento-52-noviembre-2000 (Sin link en página de históricos)
+# Suplemento-72-julio-2000 (Sin link en página de históricos)
+# Suplemento-96-julio-2004 (Sin link en página de históricos)
+# Suplemento-211-febrero2014 (Error)
+# Suplemento-225-abril-2015 (Error)
+# Suplemento-327-octubre2023 (Link manda a blog)
+
+
+

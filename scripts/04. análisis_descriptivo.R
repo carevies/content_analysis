@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ######### Análisis descriptivo
 
 install.packages(c("dplyr", "tidytext", "stringr", "text2vec", "tibble", "tokenizers", "purrr"))
@@ -58,3 +59,6 @@ tfidf_mat <- tfidf$fit_transform(as.matrix(df_conteo))
 
 # 6. Sumamos TF-IDF por documento
 muestra$tfidf_sum <- rowSums(tfidf_mat)
+=======
+######### Análisis descriptivo
+>>>>>>> a50518280dadc3823911ee48dbcf150de034e8c3

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ######### Análisis descriptivo
 
 install.packages(c("dplyr", "tidytext", "stringr", "text2vec", "tibble", "tokenizers", "purrr"))
@@ -9,6 +8,9 @@ library(text2vec)
 library(tibble)
 library(tokenizers)
 library(purrr)
+library(readr)
+library(Matrix)
+
 
 # Tus listas combinadas
 terminos <- c(
@@ -37,6 +39,9 @@ terminos <- c(
   "LGBTTTI", "LGBTI", "LGBTTTIQ", "LGBTTTIQA+", "Drag"
 )
 
+setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
+muestra <- read_csv("muestra.csv")
+
 # 1. Preparamos corpus
 corpus <- muestra$LP
 
@@ -47,18 +52,17 @@ contar_terminos <- function(texto, terminos) {
 
 # 3. Aplicamos sobre cada texto del corpus
 matriz_conteo <- t(sapply(corpus, contar_terminos, terminos = terminos))
+rownames(matriz_conteo) <- if (!is.null(muestra$ID)) muestra$ID else seq_len(nrow(muestra))
+colnames(matriz_conteo) <- terminos
 
-# 4. Convertimos a data.frame
-df_conteo <- as.data.frame(matriz_conteo)
-colnames(df_conteo) <- terminos
-rownames(df_conteo) <- muestra$ID  # si tienes un ID
+# 5. Convertimos a dgCMatrix (formato compatible con TfIdf de text2vec)
+dtm <- as(Matrix(matriz_conteo, sparse = TRUE), "dgCMatrix")
 
-# 5. Calculamos TF-IDF con text2vec
+# 6. Calcular TF-IDF
 tfidf <- TfIdf$new()
-tfidf_mat <- tfidf$fit_transform(as.matrix(df_conteo))
+tfidf_mat <- tfidf$fit_transform(dtm)
 
-# 6. Sumamos TF-IDF por documento
-muestra$tfidf_sum <- rowSums(tfidf_mat)
-=======
-######### Análisis descriptivo
->>>>>>> a50518280dadc3823911ee48dbcf150de034e8c3
+# 7. Guardar la suma TF-IDF por documento en el dataframe original
+muestra$tfidf_sum <- Matrix::rowSums(tfidf_mat)
+
+

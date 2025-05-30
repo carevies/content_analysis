@@ -24,5 +24,8 @@ muestra <- medios %>%
   sample_n(size = max(1, round(n() * prop)), replace = FALSE) %>%
   ungroup()
 
+muestra <- muestra %>%
+  mutate(ID = row_number())
+
 # Guardar la muestra como CSV
 write_csv(muestra, "muestra.csv")

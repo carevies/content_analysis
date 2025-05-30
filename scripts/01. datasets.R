@@ -152,3 +152,7 @@ for (url_pdf in enlaces_pdf) {
 
 # Se corrige manualmente el nombre de 10 archivos para que tengan formato "Suplemento-id-mes-anio.pdf:
 
+setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
+smos <- read_excel("smos.xlsx")
+
+write_csv(smos, "smos.csv") #Guardarlo en csv

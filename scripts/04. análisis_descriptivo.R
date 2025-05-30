@@ -225,7 +225,7 @@ ggplot(heatmap_df, aes(x = as.factor(anio), y = term_ordenado, fill = score_tota
   labs(
     title = "Evolution of top trans terms on trans social movements",
     x = "Year",
-    y = "top terms",
+    y = "Top terms",
     fill = "TF-IDF"
   ) +
   theme_minimal() +

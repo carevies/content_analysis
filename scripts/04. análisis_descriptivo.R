@@ -223,9 +223,9 @@ ggplot(heatmap_df, aes(x = as.factor(anio), y = term_ordenado, fill = score_tota
   geom_tile(color = "white") +
   scale_fill_gradient(low = "white", high = "darkred") +
   labs(
-    title = "Evolución del tema Trans desde el Movimentos Trans",
-    x = "Año",
-    y = "Término top",
+    title = "Evolution of top trans terms on trans social movements",
+    x = "Year",
+    y = "top terms",
     fill = "TF-IDF"
   ) +
   theme_minimal() +
@@ -348,7 +348,7 @@ ggplot(heatmap_df_muestra, aes(x = as.factor(anio), y = term, fill = score_total
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# 🧠 REORDENAR los términos por importancia total
+# REORDENAR los términos por importancia total
 heatmap_df_muestra <- heatmap_df_muestra %>%
   mutate(term = fct_reorder(term, score_total, .fun = sum, .desc = TRUE))
 
@@ -390,7 +390,7 @@ top_terms_muestra <- heatmap_df_muestra %>%
 heatmap_df_muestra <- heatmap_df_muestra %>%
   filter(term %in% top_terms_muestra)
 
-# 🔥 Ordenar términos dentro de cada año (aquí no cambia porque va en Y)
+# Ordenar términos dentro de cada año (aquí no cambia porque va en Y)
 heatmap_df_muestra <- heatmap_df_muestra %>%
   group_by(anio) %>%
   mutate(term_ordenado = fct_reorder(term, score_total, .desc = TRUE)) %>%
@@ -401,9 +401,9 @@ ggplot(heatmap_df_muestra, aes(x = as.factor(anio), y = term_ordenado, fill = sc
   geom_tile(color = "white") +
   scale_fill_gradient(low = "white", high = "darkred") +
   labs(
-    title = "Evolución del tema Trans en Prensa Mexicana",
-    x = "Año",
-    y = "Término top",
+    title = "Evolution of top trans terms on media",
+    x = "Year",
+    y = "Top term",
     fill = "TF-IDF"
   ) +
   theme_minimal() +

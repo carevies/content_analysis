@@ -155,4 +155,8 @@ for (url_pdf in enlaces_pdf) {
 setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
 smos <- read_excel("smos.xlsx")
 
+#Quitar saltos de linea
+smos <- smos %>%
+  mutate(LP = gsub("[\r\n]", "", LP))
+
 write_csv(smos, "smos.csv") #Guardarlo en csv

@@ -54,7 +54,9 @@ terminos <- c(
   "LGBTTT", "LGBTTT+", "LGBTTTI", "LGBTTTI+", "LGBTTTIQ", "LGBTTTIQ+", "LGBTTTIQA", "LGBTTTIQA+", "LGBTQ", 
   "LGBTQ+", "LGBTQI", "LGBTQI+", "LGBTQIA", "LGBTQIA+", "Drag"
 )
-terminos <- tolower(terminos)
+terminos <- tolower(terminos) %>%
+  str_replace_all("[^a-záéíóúüñ\\s]", "") %>%
+  str_squish()
 
 
 ###### TF-IDF sobre "SMOS"
@@ -359,59 +361,61 @@ ggplot(tsne_df, aes(x = X, y = Y, label = palabra, color = comunidad)) +
   theme_minimal() +
   labs(title = "Mapa semántico de comunidades (Word2Vec + t-SNE)", x = "", y = "")
 
-### INTENTO dirigido con TF-IDF + Coseno
-
-if (!require("tm")) install.packages("tm")
-if (!require("text2vec")) install.packages("text2vec")
-if (!require("lsa")) install.packages("lsa")
-library(tm); library(text2vec); library(lsa)
-
-# Corpus
-docs <- smos$texto_limpio
-
-# Tokenización
-tokens <- word_tokenizer(tolower(docs))
-
-# Crea un vocabulario y matriz de términos
-it <- itoken(tokens, progressbar = FALSE)
-vocab <- create_vocabulary(it)
-vectorizer <- vocab_vectorizer(vocab)
-dtm <- create_dtm(it, vectorizer)
-
-# Matriz TF-IDF
-tfidf <- TfIdf$new()
-dtm_tfidf <- fit_transform(dtm, tfidf)
-
-# Similaridad coseno entre palabras
-dtm_tfidf_t <- t(as.matrix(dtm_tfidf))  # transponer: palabras como filas
-cos_sim <- cosine(dtm_tfidf_t)
-
-# Buscar vecinos de cada término
-get_vecinos <- function(term) {
-  if (!(term %in% rownames(cos_sim))) return(data.frame(termino = term, vecino = NA, similitud = NA))
-  sims <- sort(cos_sim[term, ], decreasing = TRUE)[2:11]  # quitamos el mismo
-  data.frame(termino = term, vecino = names(sims), similitud = sims)
-}
-
-vecinos_df <- do.call(rbind, lapply(terminos, get_vecinos))
-print(vecinos_df)
 
 ### INTENTO con Red semántica de coocurrencias (TEXTNET)
 
-if (!require("ggraph")) install.packages("ggraph")
-if (!require("tidygraph")) install.packages("tidygraph")
-library(ggraph); library(tidygraph)
+if (!require("word2vec")) install.packages("word2vec")
+if (!require("text")) install.packages("text")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("stringr")) install.packages("stringr")
+library(stringr); library(dplyr); library(text);library(word2vec)
 
-# Crear grafo tidygraph
-graph_tbl <- as_tbl_graph(g)
+smos <- smos %>%
+  mutate(texto_limpio = texto_limpio %>%
+           str_to_lower() %>%  # Minúsculas
+           str_replace_all("[^a-záéíóúüñ\\s]", " ") %>%  # Quita signos y símbolos
+           str_squish()  # Elimina espacios dobles
+  )
 
-# Añadir comunidad como atributo
-graph_tbl <- graph_tbl %>%
-  mutate(comunidad = cluster_louvain(g)$membership)
+# Paso 1: Prepara los textos
 
-# Visualizar
-ggraph(graph_tbl, layout = "fr") +
-  geom_edge_link(alpha = 0.2) +
-  geom_node_point(aes(color = as.factor(comunidad)), size = 3) +
-  geom_node_text(aes(label = name), repel = TRUE, size = 3) +
-  theme_void()
+# Paso 2: Entrena el modelo Word2Vec
+modelo <- word2vec(
+  x = smos$texto_limpio,
+  type = "skip-gram",         # puedes cambiar a "cbow" si tu corpus es más grande
+  dim = 100,                  # 100 dimensiones (en lugar de 400)
+  window = 6,                 # ventana de 6
+  min_count = 3,              # cuenta mínima de 3 apariciones
+  iter = 10,                  # número de épocas
+  threads = parallel::detectCores()
+)
+
+# Paso 3: Convierte el modelo a matriz para consulta
+matriz_vectores <- as.matrix(modelo)
+
+# Paso 4: Consulta los vecinos para cada término de interés
+# tu lista de términos debe llamarse "terminos" y estar en minúsculas
+# por ejemplo:
+# terminos <- c("afeminado", "asexual", "bisexual", "drag", "transfobia", ...)
+
+vecinos <- lapply(terminos, function(t) {
+  tryCatch({
+    resultado <- predict(modelo, newdata = t, type = "nearest", top_n = 8)
+    tibble(termino = t, vecino = resultado$term, similitud = resultado$similarity)
+  }, error = function(e) {
+    tibble(termino = t, vecino = NA, similitud = NA)
+  })
+}) %>%
+  bind_rows()
+
+# Paso 5 (opcional): Visualiza en formato tabla por término
+library(tidyr)
+
+tabla_final <- vecinos %>%
+  group_by(termino) %>%
+  mutate(rank = row_number()) %>%
+  pivot_wider(names_from = rank, values_from = vecino, names_prefix = "vecino_")
+
+# Vista final
+print(tabla_final, n = Inf)
+

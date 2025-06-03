@@ -3,19 +3,19 @@
 rm(list = ls()) 
 
 install.packages(c("dplyr", "tidytext", "stringr", "text2vec", "tibble", "tokenizers", "purrr"))
-library(dplyr)
 library(tidytext)
 library(stringr)
 library(text2vec)
 library(tibble)
 library(tokenizers)
 library(purrr)
-library(readr)
 library(Matrix)
 library(ggplot2)
-library(lubridate)
 library(forcats)
 library(tidyr)
+library(readr)
+library(lubridate)
+library(dplyr)
 
 
 ### SOBRE SMOS
@@ -292,6 +292,80 @@ ggplot(document_scores_muestra, aes(y = tfidf_score)) +
 
 ### Semantic Neighbors
 
+if (!require("text2vec")) install.packages("word2vec")
+if (!require("tibble")) install.packages("tibble")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("stringr")) install.packages("stringr")
+library(text2vec); library(dplyr); library(stringr); library(tibble)
+
+# Preparar el texto
+tokens <- smos$texto_limpio %>%
+  tolower() %>%
+  str_replace_all("[^\\p{L}\\s]", " ") %>%  # Quitar puntuación
+  str_squish() %>%
+  word_tokenizer()
+
+# Crear el vocabulario
+it <- itoken(tokens, progressbar = FALSE)
+vocab <- create_vocabulary(it)
+vocab <- prune_vocabulary(vocab, term_count_min = 5)  # min_count = 5
+
+# Crear el vectorizador y matriz
+vectorizer <- vocab_vectorizer(vocab)
+tcm <- create_tcm(it, vectorizer, skip_grams_window = 5)
+
+# Entrenar el modelo word2vec
+modelo <- GlobalVectors$new(rank = 400, x_max = 10, learning_rate = 0.05)
+modelo_fit <- modelo$fit_transform(tcm, n_iter = 20)
+
+# Sumar vectores de contexto y palabra (opcional pero recomendado)
+modelo_matriz <- modelo_fit + t(modelo$components)
+
+# Definir terminos y sus vecinos
+terminos <- c("trans", "transgénero", "transgéneros", "transexual", "transexualidad", "transexuales", "travesti",
+              "vestida", "vestidas", "travestista", "trasvestista", "travestis", "transvesti", "transvestis", "reasignación",
+              "disforia", "transfobia", "transfóbica", "queer", "magistrade", "binario",
+              "transincluyente", "transexcluyente", "TERF", "muxe", "LGBT", "LGBT+", "LGBTI", "LGBTI+", "LGBTT", "LGBTT+", 
+              "LGBTTT", "LGBTTT+", "LGBTTTI", "LGBTTTI+", "LGBTTTIQ", "LGBTTTIQ+", "LGBTTTIQA", "LGBTTTIQA+", "LGBTQ", 
+              "LGBTQ+", "LGBTQI", "LGBTQI+", "LGBTQIA", "LGBTQIA+", "Drag")
+
+vecinos <- lapply(terminos, function(palabra) {
+  if (palabra %in% rownames(modelo_matriz)) {
+    sim <- sim2(x = modelo_matriz, y = modelo_matriz[palabra, , drop = FALSE], method = "cosine", norm = "l2")
+    vecinos_df <- sort(sim[,1], decreasing = TRUE)[2:9]  # Excluye la palabra en sí misma
+    tibble(término = palabra,
+           vecino = names(vecinos_df),
+           similitud = as.numeric(vecinos_df))
+  } else {
+    tibble(término = palabra, vecino = NA, similitud = NA)
+  }
+}) %>% bind_rows()
+
+vecinos_filtrados <- vecinos %>%
+  filter(!is.na(vecino) & vecino != "" & !is.na(similitud))
+
+library(ggraph)
+library(tidygraph)
+library(dplyr)
+
+# Convertir a grafo
+graph <- as_tbl_graph(vecinos_filtrados)
+
+# Visualizar
+ggraph(graph, layout = "fr") +
+  geom_edge_link(aes(width = similitud), color = "gray60") +
+  geom_node_point(size = 6, color = "steelblue") +
+  geom_node_text(aes(label = name), repel = TRUE, size = 5) +
+  theme_void() +
+  labs(title = "Red Semántica de Términos Trans")
+
+# Evolución de vecinos por año
+
+
+
+
+
+
 #### QUEDA MUY DISPERSO
 
 if (!require(word2vec)) install.packages("word2vec")
@@ -361,61 +435,4 @@ ggplot(tsne_df, aes(x = X, y = Y, label = palabra, color = comunidad)) +
   theme_minimal() +
   labs(title = "Mapa semántico de comunidades (Word2Vec + t-SNE)", x = "", y = "")
 
-
-### INTENTO con Red semántica de coocurrencias (TEXTNET)
-
-if (!require("word2vec")) install.packages("word2vec")
-if (!require("text")) install.packages("text")
-if (!require("dplyr")) install.packages("dplyr")
-if (!require("stringr")) install.packages("stringr")
-library(stringr); library(dplyr); library(text);library(word2vec)
-
-smos <- smos %>%
-  mutate(texto_limpio = texto_limpio %>%
-           str_to_lower() %>%  # Minúsculas
-           str_replace_all("[^a-záéíóúüñ\\s]", " ") %>%  # Quita signos y símbolos
-           str_squish()  # Elimina espacios dobles
-  )
-
-# Paso 1: Prepara los textos
-
-# Paso 2: Entrena el modelo Word2Vec
-modelo <- word2vec(
-  x = smos$texto_limpio,
-  type = "skip-gram",         # puedes cambiar a "cbow" si tu corpus es más grande
-  dim = 100,                  # 100 dimensiones (en lugar de 400)
-  window = 6,                 # ventana de 6
-  min_count = 3,              # cuenta mínima de 3 apariciones
-  iter = 10,                  # número de épocas
-  threads = parallel::detectCores()
-)
-
-# Paso 3: Convierte el modelo a matriz para consulta
-matriz_vectores <- as.matrix(modelo)
-
-# Paso 4: Consulta los vecinos para cada término de interés
-# tu lista de términos debe llamarse "terminos" y estar en minúsculas
-# por ejemplo:
-# terminos <- c("afeminado", "asexual", "bisexual", "drag", "transfobia", ...)
-
-vecinos <- lapply(terminos, function(t) {
-  tryCatch({
-    resultado <- predict(modelo, newdata = t, type = "nearest", top_n = 8)
-    tibble(termino = t, vecino = resultado$term, similitud = resultado$similarity)
-  }, error = function(e) {
-    tibble(termino = t, vecino = NA, similitud = NA)
-  })
-}) %>%
-  bind_rows()
-
-# Paso 5 (opcional): Visualiza en formato tabla por término
-library(tidyr)
-
-tabla_final <- vecinos %>%
-  group_by(termino) %>%
-  mutate(rank = row_number()) %>%
-  pivot_wider(names_from = rank, values_from = vecino, names_prefix = "vecino_")
-
-# Vista final
-print(tabla_final, n = Inf)
 

@@ -8,7 +8,7 @@ library(textstem)
 
 setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
 
-#Muestra
+### Topic Modeling con Prensa
 
 # Cargar base de datos
 muestra <- read.csv("muestra.csv")
@@ -36,7 +36,7 @@ modelo <- stm(
   documents = preparado$documents,
   vocab = preparado$vocab,
   K = 6,  # Número de temas
-  prevalence = ~ anio + SN,  # Ajusta a tus variables de metadata
+  prevalence = ~ anio + SN,  # Variables de metadata
   data = preparado$meta,
   max.em.its = 75,
   init.type = "Spectral"
@@ -49,18 +49,19 @@ labelTopics(modelo)
 plot(modelo, type = "summary")
 
 
-#Letra ESE
-library(stm)
-library(tidyverse)
+### Topic Modeling con SMOS
 
-# Suponiendo que letra_ese tiene una columna 'texto' y tus variables de metadata (ajusta si es necesario)
-# Si tienes filas vacías o con NA en texto:
-letra_ese_clean <- letra_ese %>% filter(!is.na(texto) & texto != "")
+# Cargar base de datos
+smos <- read.csv("smos.csv")
+
+# Tomar sólo encabezado (HD) y cuerpo (LP)
+smos <- smos %>%
+  mutate(texto_completo = paste(HD, LP, sep = ". "))
 
 # Procesamiento del texto con textProcessor()
 procesado <- textProcessor(
-  documents = letra_ese_clean$texto,
-  metadata = letra_ese_clean,
+  documents = muestra$texto_completo,
+  metadata = muestra,
   language = "spanish"
 )
 
@@ -71,11 +72,12 @@ preparado <- prepDocuments(
   meta = procesado$meta
 )
 
-# Ajustar el modelo STM (puedes quitar 'prevalence' si no quieres covariables)
+# Ajustar el modelo STM
 modelo <- stm(
   documents = preparado$documents,
   vocab = preparado$vocab,
-  K = 6,  # Número de temas
+  K = 8,  # Número de temas
+  prevalence = ~ anio + SN,  # Variables de metadata
   data = preparado$meta,
   max.em.its = 75,
   init.type = "Spectral"
@@ -84,5 +86,5 @@ modelo <- stm(
 # Ver los temas
 labelTopics(modelo)
 
-# Gráfica resumen de temas
+# Gráfica
 plot(modelo, type = "summary")

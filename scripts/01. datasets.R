@@ -11,8 +11,9 @@ library(stringr)
 library(lubridate)
 library(purrr)
 library(readr)
+library(writexl)
 
-setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
+setwd("/Users/carlosvillalobos/Library/CloudStorage/OneDrive-UniversitatdeBarcelona/Documents/Analisis de contenido/content_analysis/data")
 
 base <- read_excel("bbdd_factiva.xlsx", col_names = FALSE) #Importar sin nombres de columnas
 
@@ -160,3 +161,41 @@ smos <- smos %>%
   mutate(LP = gsub("[\r\n]", "", LP))
 
 write_csv(smos, "smos.csv") #Guardarlo en csv
+
+
+
+# Tweets
+tweets <- read_csv("homomex_training.csv")
+
+colnames(tweets)[1] <- "id"
+tweets$id <- 1:nrow(tweets)
+
+# Extraer solo tweets con referencia a personas trans
+palabras <- c(
+  "personas trans", "población trans", "transgénero", "transexual", "transexuales", "travesti", "travestis", "transvesti", "transvestis",
+  "cambio de sexo", "reasignación de sexo", "sexo asignado", "reasignación de género", "género autopercibido",
+  "cirugía de cambio de sexo", "disforia de género", "identidad trans", "identidad de género", "derechos trans",
+  "derechos de los trans", "transfobia", "discriminación trans", "odio trans", "violencia trans", "feminicidio trans",
+  "personas no binarias", "no binario", "no binaria", "no binarie", "género no binario", "género fluido", "genderqueer",
+  "queer", "tercer género", "magistrade", "pronombres no binarios", "representación trans", "visibilidad trans",
+  "marchas trans", "orgullo trans", "movimiento trans", "activismo trans", "colectivos trans", "ONG trans",
+  "Pride", "Marcha del Orgullo", "Orgullo Gay", "expresión de género", "reconocimiento legal trans",
+  "cambio de identidad de género", "ley de identidad de género", "derechos trans", "mujeres trans", "hombres trans",
+  "infancias trans", "salud trans", "hormonización trans", "terapia de reemplazo hormonal", "Clínica Condesa",
+  "Grupo Eon", "Inteligencia Transgenérica", "Frente Pro Derechos Transgénero y Transexuales", "Red de Trabajo Trans",
+  "Coalisión T47", "Almas Cautivas", "Impulso Trans", "Kenya Cuevas", "Paolita Suárez", "Casa de las Muñecas Tiresias",
+  "trabajadoras sexuales trans", "transincluyente", "transexcluyente", "trans en prisión", "TERF", "migración trans"
+)
+
+# Unir todas las palabras/frases en una expresión regular (escapa caracteres especiales)
+expresion <- paste0("\\b(", paste(str_replace_all(palabras, "([.|()\\^{}+$*?]|\\[|\\])", "\\\\\\1"), collapse="|"), ")\\b")
+
+# Filtrar el data frame
+tweets_trans <- tweets %>%
+  filter(str_detect(tolower(tweets), tolower(expresion)))
+rm(tweets_tras)
+
+# Exporta el data frame a un archivo Excel
+write_xlsx(tweets_trans, "tweets_trans.xlsx")
+
+

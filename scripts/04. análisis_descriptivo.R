@@ -22,7 +22,9 @@ library(stringi)
 
 # Cargar bases de datos
 
-setwd("C:/Users/carlosvillalobos156/OneDrive - Universitat de Barcelona/Documents/Analisis de contenido/content_analysis/data")
+getwd()
+
+setwd("/Users/carlosvillalobos/Library/CloudStorage/OneDrive-UniversitatdeBarcelona/Documents/Analisis de contenido/content_analysis/data")
 smos <- read_csv("smos.csv")
 muestra <- read_csv("muestra.csv")
 
@@ -604,3 +606,4 @@ tabla_vecinos_ancha <- muestra %>%
     tibble(anio = .y, !!!set_names(vecinos_lista, terminos))
   }) %>%
   bind_rows()
+
